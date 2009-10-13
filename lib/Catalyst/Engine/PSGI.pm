@@ -2,7 +2,7 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Moose;
 extends 'Catalyst::Engine';
@@ -222,6 +222,6 @@ it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
-I<Catalyst::Engine> L<PSGIRef> I<Plack>
+I<Catalyst::Engine> L<PSGI> I<Plack>
 
 =cut
