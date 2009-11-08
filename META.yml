@@ -22,10 +22,11 @@ no_index:
     - t
     - xt
 requires:
-  Catalyst::Runtime: 5.80
+  Catalyst::Action::RenderView: 0
+  Catalyst::Runtime: 5.80007
   Filter::Util::Call: 0
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/miyagawa/Catalyst-Engine-PSGI.git
-version: 0.05
+version: 0.06
