@@ -2,10 +2,20 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use Moose;
 extends 'Catalyst::Engine';
+
+{
+    # Temporary hack to see if there are better ways like TraitFor,
+    # but without requiring downstream changes.
+    sub Catalyst::Request::env {
+        my $req = shift;
+        $req->{_psgi_env} = shift if @_;
+        $req->{_psgi_env};
+    }
+}
 
 use Scalar::Util qw(blessed);
 use URI;
@@ -22,10 +32,11 @@ sub _uri_safe_unescape {
 sub prepare_connection {
     my ( $self, $c ) = @_;
 
-    my $env = $self->env;
     my $request = $c->request;
-    $request->address( $self->env->{REMOTE_ADDR} );
+    my $env = $self->env;
 
+    $request->env($env);
+    $request->address( $env->{REMOTE_ADDR} );
     $request->hostname( $env->{REMOTE_HOST} ) if exists $env->{REMOTE_HOST};
     $request->protocol( $env->{SERVER_PROTOCOL} );
     $request->user( $env->{REMOTE_USER} );  # XXX: Deprecated. See Catalyst::Request for removal information
@@ -38,7 +49,7 @@ sub prepare_connection {
 sub prepare_headers {
     my ( $self, $c ) = @_;
 
-    my $env = $self->env;
+    my $env = $c->request->env;
     my $headers = $c->request->headers;
     foreach my $header ( keys %$env ) {
         next unless $header =~ /^(HTTP|CONTENT|COOKIE)/i;
@@ -51,7 +62,7 @@ sub prepare_headers {
 sub prepare_path {
     my ( $self, $c ) = @_;
 
-    my $env = $self->env;
+    my $env = $c->request->env;
 
     my $scheme = $c->request->secure ? 'https' : 'http';
     my $host      = $env->{HTTP_HOST} || $env->{SERVER_NAME};
@@ -62,6 +73,9 @@ sub prepare_path {
     my $req_uri = $env->{REQUEST_URI};
        $req_uri =~ s/\?.*$//;
     my $path = _uri_safe_unescape($req_uri);
+    if ($path eq $base_path) {
+        $path .= "/"; # To fool catalyst a bit
+    }
     $path =~ s{^/+}{};
 
     # Using URI directly is way too slow, so we construct the URLs manually
@@ -96,8 +110,8 @@ around prepare_query_parameters => sub {
     my $orig = shift;
     my ( $self, $c ) = @_;
 
-    if ( $self->env->{QUERY_STRING} ) {
-        $self->$orig( $c, $self->env->{QUERY_STRING} );
+    if ( my $qs = $c->request->env->{QUERY_STRING} ) {
+        $self->$orig( $c, $qs );
     }
 };
 
