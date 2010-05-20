@@ -2,7 +2,7 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use Moose;
 extends 'Catalyst::Engine';
@@ -232,6 +232,21 @@ app finishes.
 To do real streaming with this engine, you should implement an
 IO::Handle-like object that responds to C<getline> method that returns
 chunk or undef when done, and set that object to C<< $c->res->body >>.
+
+=item *
+
+When your application runs behind the frontend proxy like nginx or
+lighttpd, this Catalyst engine doesn't automatically recognize the
+incoming headers like C<X-Forwaeded-For>, because respecting these
+headers by default causes a potential security issue.
+
+You have to enable L<Plack::Middleware::ReverseProxy> or
+L<Plack::Middleware::ForwardedHeaders> to automatically promote those
+forwarded headers into C<REMOTE_ADDR> hence IP address of the request.
+
+ReverseProxy middleware is pretty simple and has no configuration
+while ForwardedHeaders allows you to configure which upstream host to
+trust, etc.
 
 =back
 
