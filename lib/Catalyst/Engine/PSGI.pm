@@ -2,7 +2,7 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use Moose;
 extends 'Catalyst::Engine';
@@ -179,6 +179,8 @@ sub run {
         $body = [ $self->{buffer} ];
     } elsif (ref($body) eq 'GLOB' || (Scalar::Util::blessed($body) && $body->can('getline'))) {
         # $body is FH
+    } elsif (ref($body) eq 'CODE') {
+        return $body;
     } else {
         $body = [ $body ];
     }
@@ -233,11 +235,15 @@ To do real streaming with this engine, you should implement an
 IO::Handle-like object that responds to C<getline> method that returns
 chunk or undef when done, and set that object to C<< $c->res->body >>.
 
+Alternatively, it is possible to set the body to a code reference,
+which will be used to steam content as documented in the
+L<PSGI/Delayed_Reponse_and_Streaming_Body|PSGI spec>.
+
 =item *
 
 When your application runs behind the frontend proxy like nginx or
 lighttpd, this Catalyst engine doesn't automatically recognize the
-incoming headers like C<X-Forwaeded-For>, because respecting these
+incoming headers like C<X-Forwarded-For>, because respecting these
 headers by default causes a potential security issue.
 
 You have to enable L<Plack::Middleware::ReverseProxy> or
