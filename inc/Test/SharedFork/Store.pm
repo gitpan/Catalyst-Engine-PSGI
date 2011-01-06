@@ -11,14 +11,20 @@ sub new {
     my $class = shift;
     my %args = @_;
     my $filename = File::Temp::tmpnam();
-    my $self = bless {callback_on_open => $args{cb}, filename => $filename, lock => 0, pid => $$, ppid => $$}, $class;
+
+    my $init = Storable::dclone($args{init} || +{});
+
+    my $self = bless {
+        callback_on_open => $args{cb},
+        filename         => $filename,
+        lock             => 0,
+        pid              => $$,
+        ppid             => $$,
+    }, $class;
     $self->open();
 
     # initialize
-    Storable::nstore_fd(+{
-        array => [],
-        scalar => 0,
-    }, $self->{fh}) or die "Cannot write initialize data to $filename";
+    Storable::nstore_fd($init, $self->{fh}) or die "Cannot write initialize data to $filename";
 
     return $self;
 }
@@ -41,31 +47,12 @@ sub close {
 
 sub get {
     my ($self, $key) = @_;
-
-    $self->_reopen_if_needed;
-    my $ret = $self->lock_cb(sub {
-        $self->get_nolock($key);
-    }, LOCK_SH);
-    return $ret;
-}
-
-sub get_nolock {
-    my ($self, $key) = @_;
     $self->_reopen_if_needed;
     seek $self->{fh}, 0, SEEK_SET or die $!;
     Storable::fd_retrieve($self->{fh})->{$key};
 }
 
 sub set {
-    my ($self, $key, $val) = @_;
-
-    $self->_reopen_if_needed;
-    $self->lock_cb(sub {
-        $self->set_nolock($key, $val);
-    }, LOCK_EX);
-}
-
-sub set_nolock {
     my ($self, $key, $val) = @_;
 
     $self->_reopen_if_needed;
@@ -79,23 +66,9 @@ sub set_nolock {
     Storable::nstore_fd($dat => $self->{fh}) or die "Cannot store data to $self->{filename}";
 }
 
-sub lock_cb {
-    my ($self, $cb) = @_;
-
-    $self->_reopen_if_needed;
-
-    if ($self->{lock}++ == 0) {
-        flock $self->{fh}, LOCK_EX or die $!;
-    }
-
-    my $ret = $cb->();
-
-    $self->{lock}--;
-    if ($self->{lock} == 0) {
-        flock $self->{fh}, LOCK_UN or die $!;
-    }
-
-    $ret;
+sub get_lock {
+    my ($self, ) = @_;
+    Test::SharedFork::Store::Locker->new($self);
 }
 
 sub _reopen_if_needed {
@@ -115,6 +88,32 @@ sub DESTROY {
     my $self = shift;
     if ($self->{ppid} eq $$) { # cleanup method only run on original process.
         unlink $self->{filename};
+    }
+}
+
+package # hide from pause
+    Test::SharedFork::Store::Locker;
+
+use Fcntl ':flock';
+
+sub new {
+    my ($class, $store) = @_;
+
+    $store->_reopen_if_needed;
+
+    if ($store->{lock}++ == 0) {
+        flock $store->{fh}, LOCK_EX or die $!;
+    }
+
+    bless { store => $store }, $class;
+}
+
+sub DESTROY {
+    my ($self) = @_;
+
+    $self->{store}->{lock}--;
+    if ($self->{store}->{lock} == 0) {
+        flock $self->{store}->{fh}, LOCK_UN or die $!;
     }
 }
 

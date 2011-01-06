@@ -2,7 +2,7 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 use Moose;
 extends 'Catalyst::Engine';
@@ -175,6 +175,7 @@ sub run {
         unless $c;
 
     my $body = $c->res->body;
+    $body = '' unless defined $body;
     if (!ref $body && $body eq '' && $self->{buffer}) {
         $body = [ $self->{buffer} ];
     } elsif (ref($body) eq 'GLOB' || (Scalar::Util::blessed($body) && $body->can('getline'))) {
@@ -237,7 +238,7 @@ chunk or undef when done, and set that object to C<< $c->res->body >>.
 
 Alternatively, it is possible to set the body to a code reference,
 which will be used to steam content as documented in the
-L<PSGI/Delayed_Reponse_and_Streaming_Body|PSGI spec>.
+L<PSGI spec|PSGI/Delayed_Reponse_and_Streaming_Body>.
 
 =item *
 
