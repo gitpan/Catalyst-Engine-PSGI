@@ -2,7 +2,7 @@ package Catalyst::Engine::PSGI;
 
 use strict;
 use 5.008_001;
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 use Moose;
 extends 'Catalyst::Engine';
@@ -187,8 +187,15 @@ sub run {
     }
 
     my $headers = [];
-    $c->res->headers->scan(sub { push @$headers, @_ });
+    $c->res->headers->scan(sub { my($k, $v) = @_; push @$headers, $k, _escape($v) });
     return [ $c->res->status, $headers, $body ];
+}
+
+sub _escape {
+    local $_ = shift;
+    s/(\r?\n)+/ /g;
+    s/ +/ /g;
+    return $_;
 }
 
 no Moose;
@@ -217,19 +224,19 @@ Catalyst::Engine::PSGI - PSGI engine for Catalyst
 
 Catalyst::Engine::PSGI is a Catalyst Engine that adapts Catalyst into the PSGI gateway protocol.
 
-=head1 COMPATIBLITY
+=head1 COMPATIBILITY
 
 =over 4
 
 =item *
 
-Currently this engine works with Catlayst 5.8 (Catamoose) or over.
+Currently this engine works with Catalyst 5.8 (Catamoose) or newer.
 
 =item *
 
 Your application is supposed to work with any PSGI servers without any
 code modifications, but if your application uses C<< $c->res->write >>
-to do streamin write, this engine would buffer the ouput until your
+to do streaming write, this engine will buffer the ouput until your
 app finishes.
 
 To do real streaming with this engine, you should implement an
@@ -237,7 +244,7 @@ IO::Handle-like object that responds to C<getline> method that returns
 chunk or undef when done, and set that object to C<< $c->res->body >>.
 
 Alternatively, it is possible to set the body to a code reference,
-which will be used to steam content as documented in the
+which will be used to stream content as documented in the
 L<PSGI spec|PSGI/Delayed_Reponse_and_Streaming_Body>.
 
 =item *

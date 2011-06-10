@@ -3,7 +3,7 @@ package Test::TCP;
 use strict;
 use warnings;
 use 5.00800;
-our $VERSION = '1.11';
+our $VERSION = '1.13';
 use base qw/Exporter/;
 use IO::Socket::INET;
 use Test::SharedFork 0.12;
@@ -18,18 +18,20 @@ our @EXPORT = qw/ empty_port test_tcp wait_port /;
 # process does not die when received SIGTERM, on win32.
 my $TERMSIG = $^O eq 'MSWin32' ? 'KILL' : 'TERM';
 
+# get a empty port on 49152 .. 65535
+# http://www.iana.org/assignments/port-numbers
 sub empty_port {
     my $port = do {
         if (@_) {
             my $p = $_[0];
-            $p = 19000 unless $p =~ /^[0-9]+$/ && $p < 19000;
+            $p = 49152 unless $p =~ /^[0-9]+$/ && $p < 49152;
             $p;
         } else {
-            10000 + int(rand()*1000);
+            50000 + int(rand()*1000);
         }
     };
 
-    while ( $port++ < 20000 ) {
+    while ( $port++ < 60000 ) {
         next if _check_port($port);
         my $sock = IO::Socket::INET->new(
             Listen    => 5,
@@ -109,12 +111,16 @@ sub start {
     my $self = shift;
     if ( my $pid = fork() ) {
         # parent.
-        Test::TCP::wait_port($self->port);
         $self->{pid} = $pid;
+        Test::TCP::wait_port($self->port);
         return;
     } elsif ($pid == 0) {
         # child process
         $self->{code}->($self->port);
+        # should not reach here
+        if (kill 0, $self->{_my_pid}) { # warn only parent process still exists
+            warn("[Test::TCP] Child process does not block(PID: $$, PPID: $self->{_my_pid})");
+        }
         exit 0;
     } else {
         die "fork failed: $!";
@@ -127,7 +133,22 @@ sub stop {
     return unless defined $self->{pid};
     return unless $self->{_my_pid} == $$;
 
-    kill $TERMSIG => $self->{pid};
+    # This is a workaround for win32 fork emulation's bug.
+    #
+    # kill is inherently unsafe for pseudo-processes in Windows
+    # and the process calling kill(9, $pid) may be destabilized
+    # The call to Sleep will decrease the frequency of this problems
+    #
+    # SEE ALSO:
+    #   http://www.gossamer-threads.com/lists/perl/porters/261805
+    #   https://rt.cpan.org/Ticket/Display.html?id=67292
+    Win32::Sleep(0) if $^O eq "MSWin32"; # will relinquish the remainder of its time slice
+
+        kill $TERMSIG => $self->{pid};
+
+    Win32::Sleep(0) if $^O eq "MSWin32"; # will relinquish the remainder of its time slice
+
+
     local $?; # waitpid modifies original $?.
     LOOP: while (1) {
         my $kid = waitpid( $self->{pid}, 0 );
@@ -157,4 +178,4 @@ __END__
 
 =encoding utf8
 
-#line 381
+#line 406

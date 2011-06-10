@@ -3,7 +3,7 @@ package Test::SharedFork;
 use strict;
 use warnings;
 use base 'Test::Builder::Module';
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 use Test::Builder 0.32; # 0.32 or later is needed
 use Test::SharedFork::Scalar;
 use Test::SharedFork::Array;
@@ -128,4 +128,4 @@ BEGIN {
 1;
 __END__
 
-#line 183
+#line 184
